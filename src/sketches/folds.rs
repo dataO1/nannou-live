@@ -1,4 +1,5 @@
 use nannou::prelude::*;
+use nannou::wgpu;
 use crate::audio::AudioFeatures;
 use crate::sketch::Sketch;
 
@@ -23,7 +24,7 @@ impl Folds {
 impl Sketch for Folds {
     fn name(&self) -> &str { &self.name }
 
-    fn init(&mut self, _app: &nannou::App, _window: window::Id) {
+    fn init(&mut self, _app: &nannou::App, _window: window::Id, _device: Option<&wgpu::Device>, _size: [u32; 2]) {
         log::info!("Folds init");
     }
 

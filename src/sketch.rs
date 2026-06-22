@@ -1,5 +1,6 @@
 use nannou::prelude::*;
 use nannou::window;
+use nannou::wgpu;
 use crate::audio::AudioFeatures;
 
 /// A live visual sketch — pluggable scene with WGSL compute + render.
@@ -8,7 +9,7 @@ pub trait Sketch: Send + Sync {
 
     /// Called once when sketch is loaded. Set up compute pipelines,
     /// storage textures, bind groups here.
-    fn init(&mut self, _app: &nannou::App, _window: window::Id) {}
+    fn init(&mut self, _app: &nannou::App, _window: window::Id, _device: Option<&wgpu::Device>, _size: [u32; 2]) {}
 
     /// Called each frame. Update uniforms, dispatch compute passes.
     fn update(
@@ -21,7 +22,12 @@ pub trait Sketch: Send + Sync {
     ) {}
 
     /// Render the sketch output to the frame.
-    fn view(&self, draw: &Draw, rect: Rect, audio: &AudioFeatures);
+    /// Render using raw wgpu frame (for compute shader effects).
+    /// Default: fall back to draw-based view.
+    fn view_frame(&self, _frame: &nannou::Frame) {}
+
+    /// Simple draw-based view (for nannou Draw API effects).
+    fn view(&self, _draw: &Draw, _rect: Rect, _audio: &AudioFeatures) {}
 
     /// Default parameter values (0.0–1.0 range).
     fn params(&self) -> &[f32; 16] { &[0.5; 16] }
@@ -55,7 +61,10 @@ impl SketchManager {
     }
 
     fn add(&mut self, mut sketch: Box<dyn Sketch>, app: &nannou::App, window: window::Id) {
-        sketch.init(app, window);
+        let w = app.window(window);
+        let device = w.as_ref().map(|w| w.device());
+        let size = w.map(|w| w.inner_size_pixels()).unwrap_or([1280, 720]);
+        sketch.init(app, window, device.as_ref(), size);
         self.params.push(*sketch.params());
         self.names.push(sketch.name().to_string());
         self.sketches.push(sketch);
@@ -90,6 +99,12 @@ impl SketchManager {
     ) {
         if let Some(sketch) = self.sketches.get_mut(handle) {
             sketch.update(app, window::Id::from(0u64), t, audio, &self.params[handle]);
+        }
+    }
+
+    pub fn view_frame(&self, handle: SketchHandle, frame: &nannou::Frame) {
+        if let Some(sketch) = self.sketches.get(handle) {
+            sketch.view_frame(frame);
         }
     }
 

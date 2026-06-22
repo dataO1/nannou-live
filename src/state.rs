@@ -73,6 +73,8 @@ impl LiveState {
 }
 
 fn view(app: &nannou::App, model: &LiveState, frame: Frame) {
+    model.sketches.view_frame(model.active, &frame);
+    // Fallback: draw-based sketches still work
     let draw = app.draw();
     let features = model.audio.features();
     model.sketches.view(model.active, &draw, frame.rect(), features);
