@@ -5,38 +5,45 @@ use crate::sketch::Sketch;
 pub struct Chemreact {
     name: String,
     params: [f32; 16],
-    // TODO: WGSL pipeline, feedback texture, uniforms
 }
 
 impl Chemreact {
-    pub fn new() -> Self {
+    pub fn new() -> Box<Self> {
         let mut params = [0.5; 16];
-        params[0] = 0.45; // feed_rate
-        params[1] = 0.35; // kill_rate
-        params[2] = 0.6;  // diff_a
-        params[3] = 0.5;  // diff_b
-        params[4] = 0.4;  // inject_str
-        Chemreact {
-            name: "Chemreact".into(),
-            params,
-        }
+        params[0] = 0.45;
+        params[1] = 0.35;
+        params[2] = 0.6;
+        params[3] = 0.5;
+        params[4] = 0.4;
+        Box::new(Chemreact { name: "Chemreact".into(), params })
     }
 }
 
 impl Sketch for Chemreact {
     fn name(&self) -> &str { &self.name }
 
-    fn update(&mut self, _update: Update, _audio: &AudioFeatures, _params: &[f32; 16]) {
-        // TODO: update uniforms, run compute pass
+    fn init(&mut self, _app: &nannou::App, _window: window::Id) {
+        // TODO: Create compute pipeline from WGSL, storage textures,
+        // ping-pong for Gray-Scott state, bind group
+        log::info!("Chemreact init");
     }
 
-    fn view(&self, draw: &Draw, rect: Rect, _audio: &AudioFeatures, _params: &[f32; 16]) {
-        // TODO: render WGSL output to fullscreen quad
-        // Placeholder: dark background
+    fn update(
+        &mut self,
+        _app: &nannou::App,
+        _window: window::Id,
+        _t: &Update,
+        _audio: &AudioFeatures,
+        _params: &[f32; 16],
+    ) {
+        // TODO: Update uniforms, dispatch compute, ping-pong swap
+    }
+
+    fn view(&self, draw: &Draw, rect: Rect) {
         draw.background().color(rgb(0.02, 0.015, 0.01));
-        draw.text("Chemreact — WIP")
+        draw.text("Chemreact — audio capture active")
             .color(WHITE)
-            .font_size(24)
+            .font_size(14)
             .xy(rect.xy());
     }
 

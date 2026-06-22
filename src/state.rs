@@ -7,6 +7,10 @@ pub struct LiveState {
     pub sketches: SketchManager,
     pub active: SketchHandle,
     pub window: window::Id,
+
+    // OSC placeholder — receives messages from DJ software
+    #[cfg(feature = "osc")]
+    pub osc_rx: Option<std::sync::mpsc::Receiver<crate::osc::OscCommand>>,
 }
 
 impl LiveState {
@@ -16,34 +20,74 @@ impl LiveState {
             .size(1280, 720)
             .title("nannou-live")
             .view(view)
+            .key_pressed(key_pressed)
             .build()
             .unwrap();
 
         let audio = AudioEngine::new();
         let mut sketches = SketchManager::new();
-        let active = sketches.load_all();
+        let active = sketches.load_all(app, window);
 
-        LiveState { audio, sketches, active, window }
+        #[cfg(feature = "osc")]
+        let osc_rx = crate::osc::spawn_listener();
+
+        LiveState {
+            audio,
+            sketches,
+            active,
+            window,
+            #[cfg(feature = "osc")]
+            osc_rx,
+        }
     }
 
     pub fn update(app: &nannou::App, model: &mut Self, update: Update) {
-        // Process audio
-        model.audio.update();
+        // Process audio → features
+        model.audio.update(update.since_last.as_secs_f32());
+        let features = model.audio.features().clone();
+
+        #[cfg(feature = "osc")]
+        {
+            // Drain OSC commands from DJ software
+            if let Some(ref rx) = model.osc_rx {
+                while let Ok(cmd) = rx.try_recv() {
+                    match cmd {
+                        crate::osc::OscCommand::Scene(name) => {
+                            log::info!("OSC: switch scene → {name}");
+                            model.sketches.switch_to(&name, &mut model.active);
+                        }
+                        crate::osc::OscCommand::Param { index, value } => {
+                            model.sketches.set_param(model.active, index, value);
+                        }
+                        crate::osc::OscCommand::Beat => {
+                            // Inject beat into audio features
+                        }
+                    }
+                }
+            }
+        }
 
         // Update active sketch
-        let audio_features = model.audio.features();
-        model.sketches.update(model.active, update, audio_features);
-
-        // Scene switching: 1-9 keys
-        // Handled in view() via app.keys
+        model.sketches.update(app, model.active, &update, &features);
     }
 }
 
-fn view(app: &nannou::App, model: &App, frame: Frame) {
+fn view(app: &nannou::App, model: &LiveState, frame: Frame) {
     let draw = app.draw();
-    draw.background().color(BLACK);
-
     model.sketches.view(model.active, &draw, frame.rect());
-
     draw.to_frame(app, &frame).unwrap();
+}
+
+fn key_pressed(app: &nannou::App, model: &mut LiveState, key: Key) {
+    match key {
+        Key::Key1 => model.sketches.switch_to_index(0, &mut model.active),
+        Key::Key2 => model.sketches.switch_to_index(1, &mut model.active),
+        Key::Key3 => model.sketches.switch_to_index(2, &mut model.active),
+        Key::F => {
+            let window = app.window(model.window).unwrap();
+            let is_fs = window.is_fullscreen();
+            window.set_fullscreen(!is_fs);
+        }
+        _ => {}
+    }
 }
