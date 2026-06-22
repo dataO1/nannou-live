@@ -41,7 +41,7 @@ pub struct AudioEngine {
 
 impl AudioEngine {
     pub fn new() -> Self {
-        let fft_size = 1024;
+        let fft_size = 512;
         let ring_len = fft_size * 4;
 
         let host = cpal::default_host();
@@ -129,14 +129,20 @@ impl AudioEngine {
             sum / count
         };
 
-        self.features.sub_bass = band(20.0, 60.0);
-        self.features.bass = band(60.0, 250.0);
-        self.features.low_mid = band(250.0, 500.0);
-        self.features.mid = band(500.0, 2000.0);
-        self.features.upper_mid = band(2000.0, 4000.0);
-        self.features.presence = band(4000.0, 6000.0);
-        self.features.brilliance = band(6000.0, 20000.0);
-        self.features.rms = spectrum.iter().sum::<f32>() / half as f32;
+        // Apply exponential smoothing to all features
+        let s = 0.15; // smoothing factor (lower = smoother)
+        let sm = |old: &mut f32, new: f32| { *old = *old * (1.0 - s) + new * s; *old };
+
+        sm(&mut self.features.sub_bass, band(20.0, 60.0));
+        sm(&mut self.features.bass, band(60.0, 250.0));
+        sm(&mut self.features.low_mid, band(250.0, 500.0));
+        sm(&mut self.features.mid, band(500.0, 2000.0));
+        sm(&mut self.features.upper_mid, band(2000.0, 4000.0));
+        sm(&mut self.features.presence, band(4000.0, 6000.0));
+        sm(&mut self.features.brilliance, band(6000.0, 20000.0));
+
+        let raw_rms = spectrum.iter().sum::<f32>() / half as f32;
+        sm(&mut self.features.rms, raw_rms);
 
         // Spectral centroid
         let mut weighted = 0.0;
@@ -145,7 +151,8 @@ impl AudioEngine {
             weighted += spectrum[i] * i as f32;
             total += spectrum[i];
         }
-        self.features.centroid = if total > 0.0 { weighted / total / half as f32 } else { 0.0 };
+        let raw_centroid = if total > 0.0 { weighted / total / half as f32 } else { 0.0 };
+        sm(&mut self.features.centroid, raw_centroid);
 
         // Spectral flux (beat/onset detection)
         let mut flux = 0.0;
@@ -153,9 +160,11 @@ impl AudioEngine {
             let diff = spectrum[i] - self.prev_spectrum[i];
             flux += diff.max(0.0);
         }
-        self.features.flux = flux.min(1.0);
-        self.features.onset = if flux > 0.15 { flux } else { 0.0 };
-        self.features.beat = if flux > 0.25 { 1.0 } else { 0.0 };
+        sm(&mut self.features.flux, flux.min(1.0));
+        let raw_onset = if flux > 0.15 { flux } else { 0.0 };
+        sm(&mut self.features.onset, raw_onset);
+        let raw_beat = if flux > 0.25 { 1.0 } else { 0.0 };
+        sm(&mut self.features.beat, raw_beat);
         self.features.beat_phase = 0.0;
         self.features.bpm = 120.0 / 300.0;
         self.features.flatness = 0.5;
