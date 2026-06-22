@@ -211,8 +211,8 @@ fn main(@builtin(vertex_index) vi: u32) -> @builtin(position) vec4f {
 
 const COMPUTE_SHADER: &str = r#"
 struct Uniforms {
-    params: array<f32, 16>,
-    audio: array<f32, 16>,
+    params: array<vec4<f32>, 4>,
+    audio: array<vec4<f32>, 4>,
 }
 @group(0) @binding(0) var dst: texture_storage_2d<rgba16float, write>;
 @group(1) @binding(0) var src: texture_2d<f32>;
@@ -231,8 +231,8 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     let d  = textureLoad(src, vec2i(c.x, (c.y + 1) % h), 0);
     var A = ct.r; var B = ct.g;
     let dA = 0.8; let dB = 0.35;
-    let feed = u.params[0] * 0.06 + 0.02;
-    let kill = u.params[1] * 0.08 + 0.04;
+    let feed = u.params[0][0] * 0.06 + 0.02;
+    let kill = u.params[0][1] * 0.08 + 0.04;
     let lapA = (l.r + r.r + u_.r + d.r) - 4.0 * A;
     let lapB = (l.g + r.g + u_.g + d.g) - 4.0 * B;
     let react = A * B * B;
