@@ -24,7 +24,7 @@ impl Folds {
 impl Sketch for Folds {
     fn name(&self) -> &str { &self.name }
 
-    fn init(&mut self, _app: &nannou::App, _window: window::Id, _device: Option<&wgpu::Device>, _size: [u32; 2]) {
+    fn init(&mut self, _app: &nannou::App, _window: window::Id, _device: Option<&wgpu::Device>, _size: (u32, u32)) {
         log::info!("Folds init");
     }
 

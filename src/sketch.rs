@@ -9,7 +9,7 @@ pub trait Sketch: Send + Sync {
 
     /// Called once when sketch is loaded. Set up compute pipelines,
     /// storage textures, bind groups here.
-    fn init(&mut self, _app: &nannou::App, _window: window::Id, _device: Option<&wgpu::Device>, _size: [u32; 2]) {}
+    fn init(&mut self, _app: &nannou::App, _window: window::Id, _device: Option<&wgpu::Device>, _size: (u32, u32)) {}
 
     /// Called each frame. Update uniforms, dispatch compute passes.
     fn update(
@@ -63,7 +63,7 @@ impl SketchManager {
     fn add(&mut self, mut sketch: Box<dyn Sketch>, app: &nannou::App, window: window::Id) {
         let w = app.window(window);
         let device = w.as_ref().map(|w| w.device());
-        let size = w.map(|w| w.inner_size_pixels()).unwrap_or([1280, 720]);
+        let size = w.map(|w| w.inner_size_pixels()).unwrap_or((1280, 720));
         sketch.init(app, window, device.as_ref(), size);
         self.params.push(*sketch.params());
         self.names.push(sketch.name().to_string());
