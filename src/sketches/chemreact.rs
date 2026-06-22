@@ -12,8 +12,9 @@ pub struct Chemreact {
     tex_views: Option<[wgpu::TextureViewHandle; 2]>,
     current: usize,
     compute_pipeline: Option<wgpu::ComputePipeline>,
-    compute_bind_groups: Option<[wgpu::BindGroup; 2]>,
-    comp_bgl: Option<wgpu::BindGroupLayout>,
+    compute_bind_group_pairs: Option<[(wgpu::BindGroup, wgpu::BindGroup); 2]>,  // (write, read) × 2
+    write_bgl: Option<wgpu::BindGroupLayout>,
+    read_bgl: Option<wgpu::BindGroupLayout>,
     // Render
     render_pipeline: Option<wgpu::RenderPipeline>,
     render_bind_group: Option<wgpu::BindGroup>,
@@ -31,7 +32,7 @@ impl Chemreact {
         Box::new(Chemreact {
             name: "Chemreact".into(), params: p,
             textures: None, tex_views: None, current: 0, frame: 0,
-            compute_pipeline: None, compute_bind_groups: None, comp_bgl: None,
+            compute_pipeline: None, compute_bind_group_pairs: None, write_bgl: None, read_bgl: None,
             render_pipeline: None, render_bind_group: None, render_bgl: None,
             uniform_buffer: None, sampler: None, size: (1280, 720),
         })
@@ -77,25 +78,41 @@ impl Chemreact {
         let ub = self.uniform_buffer.as_ref().unwrap();
 
         // Compute BGL
-        let comp_bgl = wgpu::BindGroupLayoutBuilder::new()
+        // Separate BGLs for write and read (WebGPU forbids mixed access)
+        let write_bgl = wgpu::BindGroupLayoutBuilder::new()
             .storage_texture(wgpu::ShaderStages::COMPUTE, wgpu::TextureFormat::Rgba16Float, wgpu::TextureViewDimension::D2, wgpu::StorageTextureAccess::WriteOnly)
+            .build(device);
+        let read_bgl = wgpu::BindGroupLayoutBuilder::new()
             .storage_texture(wgpu::ShaderStages::COMPUTE, wgpu::TextureFormat::Rgba16Float, wgpu::TextureViewDimension::D2, wgpu::StorageTextureAccess::ReadOnly)
             .uniform_buffer(wgpu::ShaderStages::COMPUTE, false)
             .build(device);
-        self.comp_bgl = Some(comp_bgl);
+
+        self.write_bgl = Some(write_bgl);
+        self.read_bgl = Some(read_bgl);
 
         let views = self.tex_views.as_ref().unwrap();
+        let ub = self.uniform_buffer.as_ref().unwrap();
 
-        // Two bind groups for ping-pong
-        let bg0 = wgpu::BindGroupBuilder::new()
-            .texture_view(&views[1]).texture_view(&views[0])
+        // Ping-pong: bg pair 0 writes to tex[1], reads from tex[0] + uniforms
+        let wbg0 = wgpu::BindGroupBuilder::new()
+            .texture_view(&views[1])
+            .build(device, self.write_bgl.as_ref().unwrap());
+        let rbg0 = wgpu::BindGroupBuilder::new()
+            .texture_view(&views[0])
             .buffer_bytes(ub, 0, wgpu::BufferSize::new(128))
-            .build(device, &self.comp_bgl.as_ref().unwrap());
-        let bg1 = wgpu::BindGroupBuilder::new()
-            .texture_view(&views[0]).texture_view(&views[1])
+            .build(device, self.read_bgl.as_ref().unwrap());
+
+        // Ping-pong: bg pair 1 writes to tex[0], reads from tex[1] + uniforms
+        let wbg1 = wgpu::BindGroupBuilder::new()
+            .texture_view(&views[0])
+            .build(device, self.write_bgl.as_ref().unwrap());
+        let rbg1 = wgpu::BindGroupBuilder::new()
+            .texture_view(&views[1])
             .buffer_bytes(ub, 0, wgpu::BufferSize::new(128))
-            .build(device, &self.comp_bgl.as_ref().unwrap());
-        self.compute_bind_groups = Some([bg0, bg1]);
+            .build(device, self.read_bgl.as_ref().unwrap());
+
+        // Store as pairs: (write_bg, read_bg) for each frame
+        self.compute_bind_group_pairs = Some([(wbg0, rbg0), (wbg1, rbg1)]);
 
         // Compute pipeline
         let cs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -103,7 +120,7 @@ impl Chemreact {
         });
         let comp_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("cr_comp_layout"),
-            bind_group_layouts: &[self.comp_bgl.as_ref().unwrap()],
+            bind_group_layouts: &[self.write_bgl.as_ref().unwrap(), self.read_bgl.as_ref().unwrap()],
             push_constant_ranges: &[],
         });
         self.compute_pipeline = Some(device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -159,14 +176,15 @@ impl Sketch for Chemreact {
     }
     fn view_frame(&self, frame: &nannou::Frame) {
         let cp = match &self.compute_pipeline { Some(p) => p, None => return };
-        let cbg = match &self.compute_bind_groups { Some(bg) => &bg[self.current], None => return };
+        let bg_pair = match &self.compute_bind_group_pairs { Some(bg) => &bg[self.current], None => return };
         let rp = match &self.render_pipeline { Some(p) => p, None => return };
         let rbg = match &self.render_bind_group { Some(bg) => bg, None => return };
         let mut encoder = frame.command_encoder();
         {
             let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("cr") });
             cpass.set_pipeline(cp);
-            cpass.set_bind_group(0, cbg, &[]);
+            cpass.set_bind_group(0, &bg_pair.0, &[]);
+            cpass.set_bind_group(1, &bg_pair.1, &[]);
             cpass.dispatch_workgroups((self.size.0 + 15) / 16, (self.size.1 + 15) / 16, 1);
         }
         {
@@ -196,8 +214,8 @@ struct Uniforms {
     audio: array<f32, 16>,
 }
 @group(0) @binding(0) var dst: texture_storage_2d<rgba16float, write>;
-@group(0) @binding(1) var src: texture_2d<f32>;
-@group(0) @binding(2) var<uniform> u: Uniforms;
+@group(1) @binding(0) var src: texture_2d<f32>;
+@group(1) @binding(1) var<uniform> u: Uniforms;
 
 @compute @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) gid: vec3u) {
