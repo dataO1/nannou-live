@@ -63,7 +63,7 @@ impl SketchManager {
     fn add(&mut self, mut sketch: Box<dyn Sketch>, app: &nannou::App, window: window::Id) {
         let w = app.window(window);
         let device = w.as_ref().map(|w| w.device());
-        let size = w.map(|w| w.inner_size_pixels()).unwrap_or((1280, 720));
+        let size = w.as_ref().map(|w| w.inner_size_pixels()).unwrap_or((1280, 720));
         sketch.init(app, window, device.as_deref(), size);
         self.params.push(*sketch.params());
         self.names.push(sketch.name().to_string());
