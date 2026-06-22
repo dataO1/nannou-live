@@ -132,7 +132,7 @@ impl Chemreact {
         // Render BGL
         let render_bgl = wgpu::BindGroupLayoutBuilder::new()
             .texture(wgpu::ShaderStages::FRAGMENT, false, wgpu::TextureViewDimension::D2, wgpu::TextureSampleType::Float { filterable: true })
-            .sampler(wgpu::ShaderStages::FRAGMENT, false)
+            .sampler(wgpu::ShaderStages::FRAGMENT, true)
             .build(device);
         self.render_bgl = Some(render_bgl);
         let render_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
