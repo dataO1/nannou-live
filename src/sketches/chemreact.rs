@@ -78,12 +78,13 @@ impl Chemreact {
         let ub = self.uniform_buffer.as_ref().unwrap();
 
         // Compute BGL
-        // Separate BGLs for write and read (WebGPU forbids mixed access)
+        // Write BGL: storage texture for output
         let write_bgl = wgpu::BindGroupLayoutBuilder::new()
             .storage_texture(wgpu::ShaderStages::COMPUTE, wgpu::TextureFormat::Rgba16Float, wgpu::TextureViewDimension::D2, wgpu::StorageTextureAccess::WriteOnly)
             .build(device);
+        // Read BGL: regular texture (sampled) + uniforms — NOT storage
         let read_bgl = wgpu::BindGroupLayoutBuilder::new()
-            .storage_texture(wgpu::ShaderStages::COMPUTE, wgpu::TextureFormat::Rgba16Float, wgpu::TextureViewDimension::D2, wgpu::StorageTextureAccess::ReadOnly)
+            .texture(wgpu::ShaderStages::COMPUTE, false, wgpu::TextureViewDimension::D2, wgpu::TextureSampleType::Float { filterable: false })
             .uniform_buffer(wgpu::ShaderStages::COMPUTE, false)
             .build(device);
 
