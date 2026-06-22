@@ -21,7 +21,7 @@ pub trait Sketch: Send + Sync {
     ) {}
 
     /// Render the sketch output to the frame.
-    fn view(&self, draw: &Draw, rect: Rect);
+    fn view(&self, draw: &Draw, rect: Rect, audio: &AudioFeatures);
 
     /// Default parameter values (0.0–1.0 range).
     fn params(&self) -> &[f32; 16] { &[0.5; 16] }
@@ -93,9 +93,9 @@ impl SketchManager {
         }
     }
 
-    pub fn view(&self, handle: SketchHandle, draw: &Draw, rect: Rect) {
+    pub fn view(&self, handle: SketchHandle, draw: &Draw, rect: Rect, audio: &AudioFeatures) {
         if let Some(sketch) = self.sketches.get(handle) {
-            sketch.view(draw, rect);
+            sketch.view(draw, rect, audio);
         }
     }
 }

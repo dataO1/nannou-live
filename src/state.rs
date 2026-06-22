@@ -74,7 +74,8 @@ impl LiveState {
 
 fn view(app: &nannou::App, model: &LiveState, frame: Frame) {
     let draw = app.draw();
-    model.sketches.view(model.active, &draw, frame.rect());
+    let features = model.audio.features();
+    model.sketches.view(model.active, &draw, frame.rect(), features);
     draw.to_frame(app, &frame).unwrap();
 }
 
