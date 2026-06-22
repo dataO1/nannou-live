@@ -84,6 +84,13 @@
           ];
 
           shellHook = ''
+            # Vulkan loader path — required for wgpu to find GPU on NixOS
+            export LD_LIBRARY_PATH=${pkgs.vulkan-loader}/lib:$LD_LIBRARY_PATH
+            # NVIDIA Optimus: force dGPU for rendering
+            export __NV_PRIME_RENDER_OFFLOAD=1
+            export __NV_PRIME_RENDER_OFFLOAD_PROVIDER=NVIDIA-G0
+            export __GLX_VENDOR_LIBRARY_NAME=nvidia
+
             echo "🔮 nannou-live devshell"
             echo "   cargo run --release    build + launch"
           '';
