@@ -43,7 +43,7 @@ impl LiveState {
 
     pub fn update(app: &nannou::App, model: &mut Self, update: Update) {
         // Process audio → features
-        model.audio.update(update.since_last.as_secs_f32());
+        model.audio.update();
         let features = model.audio.features().clone();
 
         #[cfg(feature = "osc")]
