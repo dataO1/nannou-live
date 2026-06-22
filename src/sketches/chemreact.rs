@@ -69,11 +69,11 @@ impl Sketch for Chemreact {
             .stroke(rgb(0.9, 0.8, 0.6))
             .stroke_weight(2.0);
 
-        // Beat flash
+        // Beat flash — subtle, not whole screen
         if audio.beat > 0.5 {
             draw.rect()
                 .wh(rect.wh())
-                .color(rgba(1.0, 0.9, 0.7, 0.05));
+                .color(rgba(1.0, 0.9, 0.7, 0.02));
         }
 
         // FPS label

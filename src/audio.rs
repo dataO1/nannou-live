@@ -130,7 +130,7 @@ impl AudioEngine {
         };
 
         // Apply exponential smoothing to all features
-        let s = 0.15; // smoothing factor (lower = smoother)
+        let s = 0.25; // smoothing factor (higher = smoother)
         let sm = |old: &mut f32, new: f32| { *old = *old * (1.0 - s) + new * s; *old };
 
         sm(&mut self.features.sub_bass, band(20.0, 60.0));
@@ -161,10 +161,12 @@ impl AudioEngine {
             flux += diff.max(0.0);
         }
         sm(&mut self.features.flux, flux.min(1.0));
-        let raw_onset = if flux > 0.15 { flux } else { 0.0 };
+        let raw_onset = if flux > 0.4 { flux } else { 0.0 };
         sm(&mut self.features.onset, raw_onset);
-        let raw_beat = if flux > 0.25 { 1.0 } else { 0.0 };
-        sm(&mut self.features.beat, raw_beat);
+        let raw_beat = if flux > 0.55 { 1.0 } else { 0.0 };
+        // Stronger smoothing on beat to prevent rapid re-triggering
+        self.features.beat = self.features.beat * 0.7 + raw_beat * 0.3;
+        if self.features.beat < 0.1 { self.features.beat = 0.0; }
         self.features.beat_phase = 0.0;
         self.features.bpm = 120.0 / 300.0;
         self.features.flatness = 0.5;
